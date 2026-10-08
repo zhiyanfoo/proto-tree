@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package shop.v1;
+
+import "shop/v1/catalog.proto";
+
+// Read and write access to the product catalog.
+service CatalogService {
+  // Returns a single product by ID.
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  // Streams every product in a category, including sub-categories.
+  rpc ListProducts(ListProductsRequest) returns (stream Product);
+}
+
+message GetProductRequest {
+  string id = 1;
+}
+
+message GetProductResponse {
+  Product product = 1;
+}
+
+message ListProductsRequest {
+  string category = 1;
+  int32 page_size = 2;
+}

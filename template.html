@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #ffffff; --fg: #1f2328; --muted: #6e7781; --line: #dfe3e8;
+  --hover: #f2f4f6; --focus: #dcebff; --flash: #fff3b0;
+  --msg: #8250df; --enum: #b35900; --svc: #0a7f5a; --type: #0550ae; --scalar: #57606a;
+  --warn: #cf222e; --tag: #eef1f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1014; --panel: #14171c; --fg: #e6edf3; --muted: #8b949e; --line: #2a3038;
+    --hover: #191d23; --focus: #1d3557; --flash: #4a4012;
+    --msg: #d2a8ff; --enum: #ffa657; --svc: #56d4a4; --type: #79c0ff; --scalar: #9da7b3;
+    --warn: #ff7b72; --tag: #21262d;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1014; --panel: #14171c; --fg: #e6edf3; --muted: #8b949e; --line: #2a3038;
+  --hover: #191d23; --focus: #1d3557; --flash: #4a4012;
+  --msg: #d2a8ff; --enum: #ffa657; --svc: #56d4a4; --type: #79c0ff; --scalar: #9da7b3;
+  --warn: #ff7b72; --tag: #21262d;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body { font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+header {
+  position: sticky; top: 0; z-index: 2; background: var(--panel);
+  border-bottom: 1px solid var(--line); padding: 10px 16px;
+}
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+h1 { font-size: 14px; margin: 0 8px 0 0; font-weight: 600; }
+.stats { color: var(--muted); }
+input[type=search] {
+  flex: 1 1 240px; min-width: 0; font: inherit; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px;
+}
+input[type=search]:focus { outline: 2px solid var(--type); outline-offset: -1px; }
+button {
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+button:hover { background: var(--hover); }
+.keys { color: var(--muted); margin-top: 6px; font-size: 12px; }
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--bg); }
+main { padding: 8px 16px 40vh; }
+.hidden { display: none !important; }
+
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+.row {
+  display: block; padding: 1px 6px; border-radius: 4px; cursor: default; outline: none;
+  overflow-wrap: anywhere;
+}
+summary.row { cursor: pointer; }
+.row:hover { background: var(--hover); }
+.row:focus { background: var(--focus); }
+.row.flash { animation: flash 1.2s ease-out; }
+@keyframes flash { from { background: var(--flash); } }
+.caret { display: inline-block; width: 1.2em; color: var(--muted); transition: transform .1s; }
+summary.row > .line > .caret::before { content: "▸"; }
+details[open] > summary.row > .line > .caret { transform: rotate(90deg); }
+.kids { margin-left: .9em; padding-left: .6em; border-left: 1px solid var(--line); }
+.desc {
+  color: var(--muted); white-space: pre-wrap; margin: 0 0 2px 1.2em; font-size: 12px;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+body.nodesc .desc { display: none; }
+.kw { color: var(--muted); }
+.k-message { color: var(--msg); font-weight: 600; }
+.k-enum { color: var(--enum); font-weight: 600; }
+.k-service { color: var(--svc); font-weight: 600; }
+.k-pkg { font-weight: 600; }
+.fname { font-weight: 600; }
+.label { color: var(--muted); font-style: italic; }
+.type { color: var(--scalar); }
+.type.link { color: var(--type); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+.type.link:hover { text-decoration-style: solid; }
+.dim { color: var(--muted); font-size: 12px; }
+.tag {
+  display: inline-block; font-size: 11px; padding: 0 5px; margin-left: 6px; border-radius: 3px;
+  background: var(--tag); color: var(--muted); vertical-align: 1px;
+}
+.tag.warn { color: var(--warn); }
+.num { color: var(--muted); }
+.empty { color: var(--muted); font-style: italic; }
+#findbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; gap: 8px; align-items: center;
+  background: var(--panel); border-top: 1px solid var(--line); padding: 6px 16px;
+}
+#findbar .slash { color: var(--muted); }
+#find {
+  flex: 1; min-width: 0; font: inherit; color: var(--fg); background: transparent; border: 0; outline: none; padding: 0;
+}
+#findbar.status #find { pointer-events: none; }
+#findinfo { color: var(--muted); white-space: nowrap; }
+#findinfo.err { color: var(--warn); }
+.row.match { box-shadow: inset 2px 0 0 var(--enum); }
+.row.preview { background: var(--focus); }
+::highlight(find) { background: var(--flash); color: inherit; }
+@media (max-width: 600px) { .keys { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>__TITLE__</h1>
+    <span class="stats" id="stats"></span>
+    <input type="search" id="q" placeholder="Search all types, fields, enum values, methods  ( s )" autocomplete="off" spellcheck="false">
+    <button id="unfold" title="zR">Unfold packages</button>
+    <button id="fold" title="zM">Fold all</button>
+    <button id="desc" title="Toggle descriptions">Descriptions</button>
+  </div>
+  <div class="keys">
+    <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>l</kbd> open/enter · <kbd>h</kbd> close/parent ·
+    <kbd>za</kbd> toggle · <kbd>zo</kbd>/<kbd>zc</kbd> open/close · <kbd>zO</kbd> open subtree ·
+    <kbd>zM</kbd> fold all · <kbd>zR</kbd> unfold packages · <kbd>gd</kbd> go to type ·
+    <kbd>gg</kbd>/<kbd>G</kbd> top/bottom · <kbd>/</kbd> find in visible · <kbd>n</kbd>/<kbd>N</kbd> next/prev · <kbd>*</kbd> find name under cursor · <kbd>s</kbd> search all · click a <span class="type link">Type</span> to jump
+  </div>
+</header>
+<main>
+  <div id="tree"></div>
+  <div id="results" class="hidden"></div>
+</main>
+<div id="findbar" class="hidden"><span class="slash">/</span><input id="find" autocomplete="off" spellcheck="false"><span id="findinfo"></span></div>
+<script>
+const DATA =
+/*PROTO_DATA*/
+;
+
+// ---------- index ----------
+const types = new Map();   // fullName -> {kind, def, file, parent}
+const byPkg = new Map();   // package -> [file]
+const mapEntries = new Set();
+for (const f of DATA.files) {
+  if (!byPkg.has(f.package)) byPkg.set(f.package, []);
+  byPkg.get(f.package).push(f);
+  for (const m of f.messages) {
+    types.set(m.fullName, { kind: 'message', def: m, file: f });
+    for (const fld of m.fields) if (fld.ismap) mapEntries.add(fld.fullType);
+  }
+  for (const e of f.enums) types.set(e.fullName, { kind: 'enum', def: e, file: f });
+  for (const s of f.services) types.set(s.fullName, { kind: 'service', def: s, file: f });
+}
+const nested = new Map();  // parent fullName -> [child fullName]
+for (const [fn, t] of types) {
+  if (t.kind === 'service' || mapEntries.has(fn)) continue;
+  const p = fn.slice(0, fn.lastIndexOf('.'));
+  const pt = types.get(p);
+  if (pt && pt.kind === 'message') {
+    t.parent = p;
+    if (!nested.has(p)) nested.set(p, []);
+    nested.get(p).push(fn);
+  }
+}
+const count = k => [...types.values()].filter(t => t.kind === k && !mapEntries.has(t.def.fullName)).length;
+document.getElementById('stats').textContent =
+  `${byPkg.size} packages · ${DATA.files.length} files · ${count('message')} messages · ${count('enum')} enums · ${count('service')} services`;
+
+// ---------- dom helpers ----------
+function h(tag, cls, ...kids) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  for (const k of kids) if (k != null && k !== false) e.append(k instanceof Node ? k : String(k));
+  return e;
+}
+const tag = (text, cls = '') => h('span', 'tag ' + cls, text);
+
+// A tree node. kidsFn builds children lazily on first open.
+function node(parts, desc, kidsFn, data = {}) {
+  const line = h('span', 'line', h('span', 'caret'), ...parts);
+  const body = [line, desc ? h('div', 'desc', desc) : null];
+  let el;
+  if (!kidsFn) {
+    el = h('div', 'leaf', h('div', 'row', ...body));
+    el.firstChild.tabIndex = -1;
+  } else {
+    el = h('details', 'node', h('summary', 'row', ...body));
+    el.firstChild.tabIndex = -1;
+    el._build = () => {
+      if (el._built) return;
+      el._built = true;
+      const kids = h('div', 'kids');
+      const list = kidsFn();
+      if (!list.length) kids.append(h('div', 'leaf', h('div', 'row empty', h('span', 'caret'), '(empty)')));
+      for (const c of list) kids.append(c);
+      el.append(kids);
+    };
+    el.addEventListener('toggle', () => { if (el.open) el._build(); });
+  }
+  Object.assign(el.dataset, data);
+  return el;
+}
+function openNode(el) { if (el && el.tagName === 'DETAILS') { el._build(); el.open = true; } }
+
+function typeRef(fullType, shown) {
+  const t = types.get(fullType);
+  const s = h('span', 'type' + (t && t.kind !== 'service' ? ' link' : ''), shown);
+  s.title = fullType;
+  if (t) s.dataset.ref = fullType;
+  return s;
+}
+
+// ---------- type rendering ----------
+function hasKids(fn) {
+  const t = types.get(fn);
+  if (!t) return false;
+  if (t.kind === 'message') return t.def.fields.length > 0 || nested.has(fn);
+  if (t.kind === 'enum') return t.def.values.length > 0;
+  return t.def.methods.length > 0;
+}
+
+function typeChildren(fn, anc) {
+  const t = types.get(fn);
+  if (t.kind === 'enum') {
+    return t.def.values.map(v => node([h('span', 'fname', v.name), h('span', 'num', ' = ' + v.number)], v.description));
+  }
+  if (t.kind === 'service') {
+    return t.def.methods.map(m => methodNode(m, anc));
+  }
+  const out = [];
+  const groups = new Map();
+  for (const f of t.def.fields) {
+    const synthetic = f.oneofdecl === '_' + f.name;
+    if (f.isoneof && f.oneofdecl && !synthetic) {
+      if (!groups.has(f.oneofdecl)) {
+        const members = [];
+        groups.set(f.oneofdecl, members);
+        const g = node([h('span', 'kw', 'oneof '), h('span', 'fname', f.oneofdecl)], null,
+          () => members.map(m => fieldNode(m, anc)));
+        out.push(g);
+        queueMicrotask(() => openNode(g));
+      }
+      groups.get(f.oneofdecl).push(f);
+    } else {
+      out.push(fieldNode(f, anc));
+    }
+  }
+  for (const c of nested.get(fn) || []) out.push(typeNode(c, anc));
+  return out;
+}
+
+function fieldNode(f, anc) {
+  const parts = [];
+  let target = f.fullType;
+  if (f.ismap) {
+    const entry = types.get(f.fullType);
+    const k = entry && entry.def.fields.find(x => x.name === 'key');
+    const v = entry && entry.def.fields.find(x => x.name === 'value');
+    parts.push(h('span', 'fname', f.name), ': map<',
+      k ? typeRef(k.fullType, k.longType) : '?', ', ', v ? typeRef(v.fullType, v.longType) : '?', '>');
+    target = v && v.fullType;
+  } else {
+    if (f.label) parts.push(h('span', 'label', f.label + ' '));
+    parts.push(h('span', 'fname', f.name), ': ', typeRef(f.fullType, f.longType));
+  }
+  if (f.options && f.options.deprecated) parts.push(tag('deprecated', 'warn'));
+  if (f.defaultValue) parts.push(tag('default ' + f.defaultValue));
+  const t = types.get(target);
+  const recursive = anc.includes(target);
+  if (recursive) parts.push(tag('recursive'));
+  const kids = t && hasKids(target) ? () => typeChildren(target, [...anc, target]) : null;
+  return node(parts, f.description, kids);
+}
+
+function methodNode(m, anc) {
+  const arrow = (streaming) => streaming ? h('span', 'kw', 'stream ') : null;
+  const io = (label, fn, shown, streaming) => {
+    const parts = [h('span', 'kw', label + ' '), arrow(streaming), typeRef(fn, shown)];
+    return node(parts, null, hasKids(fn) ? () => typeChildren(fn, [...anc, fn]) : null);
+  };
+  return node(
+    [h('span', 'kw', 'rpc '), h('span', 'fname', m.name), ' (', arrow(m.requestStreaming), typeRef(m.requestFullType, m.requestLongType),
+      ') → (', arrow(m.responseStreaming), typeRef(m.responseFullType, m.responseLongType), ')'],
+    m.description,
+    () => [io('request', m.requestFullType, m.requestLongType, m.requestStreaming),
+           io('response', m.responseFullType, m.responseLongType, m.responseStreaming)]);
+}
+
+function typeNode(fn, anc = [], showFull = false, extra = []) {
+  const t = types.get(fn);
+  const parts = [h('span', 'kw', t.kind + ' '), h('span', 'k-' + t.kind, t.def.name)];
+  if (showFull) parts.push(' ', h('span', 'dim', fn));
+  parts.push(...extra);
+  return node(parts, t.def.description, () => typeChildren(fn, [...anc, fn]), { def: fn });
+}
+
+// ---------- browse tree ----------
+const tree = document.getElementById('tree');
+for (const pkg of [...byPkg.keys()].sort()) {
+  const files = byPkg.get(pkg).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const n = files.reduce((a, f) => a + f.messages.length + f.enums.length + f.services.length, 0);
+  tree.append(node([h('span', 'kw', 'package '), h('span', 'k-pkg', pkg || '(none)'), h('span', 'dim', `  ${files.length} file${files.length > 1 ? 's' : ''}`)],
+    null,
+    () => files.map(f => node([h('span', 'fname', f.name.split('/').pop()), ' ', h('span', 'dim', f.name)], f.description, () => {
+      const top = (list) => list.filter(x => !types.get(x.fullName).parent && !mapEntries.has(x.fullName));
+      return [...top(f.services), ...top(f.messages), ...top(f.enums)].map(x => typeNode(x.fullName));
+    }, { file: f.name })),
+    { pkg }));
+}
+
+function childOf(el, attr, value) {
+  const kids = el.querySelector(':scope > .kids');
+  return kids && [...kids.children].find(c => c.dataset[attr] === value);
+}
+
+function reveal(fn) {
+  const t = types.get(fn);
+  if (!t) return;
+  if (!results.classList.contains('hidden')) { q.value = ''; runSearch(); }
+  const chain = [];
+  for (let c = fn; c; c = types.get(c).parent) chain.unshift(c);
+  let el = [...tree.children].find(c => c.dataset.pkg === t.file.package);
+  openNode(el);
+  el = childOf(el, 'file', t.file.name);
+  for (const c of chain) {
+    openNode(el);
+    el = childOf(el, 'def', c);
+    if (!el) return;
+  }
+  const row = el.firstChild;
+  focusRow(row);
+  row.scrollIntoView({ block: 'center' });
+  row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
+}
+
+// ---------- search ----------
+const q = document.getElementById('q');
+const results = document.getElementById('results');
+let searchTimer;
+function runSearch() {
+  const s = q.value.trim().toLowerCase();
+  results.replaceChildren();
+  results.classList.toggle('hidden', !s);
+  tree.classList.toggle('hidden', !!s);
+  if (!s) return;
+  const hits = [];
+  for (const [fn, t] of types) {
+    if (mapEntries.has(fn)) continue;
+    const name = t.def.name.toLowerCase();
+    let score = name === s ? 0 : name.startsWith(s) ? 1 : name.includes(s) ? 2 : fn.toLowerCase().includes(s) ? 3 : -1;
+    let via = [];
+    const members = t.kind === 'message' ? t.def.fields : t.kind === 'enum' ? t.def.values : t.def.methods;
+    for (const m of members) if (m.name.toLowerCase().includes(s)) via.push(m.name);
+    if (score < 0 && via.length) score = 4;
+    if (score >= 0) hits.push({ fn, score, via: score === 4 ? via : [] });
+  }
+  hits.sort((a, b) => a.score - b.score || a.fn.localeCompare(b.fn));
+  const shown = hits.slice(0, 300);
+  results.append(h('div', 'dim', `${hits.length} match${hits.length === 1 ? '' : 'es'}${hits.length > shown.length ? ` (showing ${shown.length})` : ''}`));
+  for (const r of shown) {
+    const extra = r.via.length ? [tag((types.get(r.fn).kind === 'enum' ? 'value: ' : types.get(r.fn).kind === 'service' ? 'rpc: ' : 'field: ') + r.via.slice(0, 3).join(', ') + (r.via.length > 3 ? '…' : ''))] : [];
+    results.append(typeNode(r.fn, [], true, extra));
+  }
+}
+q.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
+
+// ---------- controls ----------
+function foldAll() { document.querySelectorAll('main details[open]').forEach(d => d.open = false); }
+function unfoldPackages() { [...tree.children].forEach(p => { openNode(p); p.querySelectorAll(':scope > .kids > details').forEach(openNode); }); }
+document.getElementById('fold').onclick = () => { foldAll(); focusRow(curRow() || rows()[0]); };
+document.getElementById('unfold').onclick = () => { unfoldPackages(); focusRow(curRow() || rows()[0]); };
+function setDesc(on) {
+  document.body.classList.toggle('nodesc', !on);
+  try { localStorage.setItem('protoTree.desc', on ? '1' : '0'); } catch (e) {}
+}
+document.getElementById('desc').onclick = (e) => { setDesc(document.body.classList.contains('nodesc')); e.currentTarget.blur(); };
+try { if (localStorage.getItem('protoTree.desc') === '0') setDesc(false); } catch (e) {}
+
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('.type.link');
+  if (link) { e.preventDefault(); reveal(link.dataset.ref); }
+});
+
+// ---------- keyboard ----------
+let current = null;
+function view() { return results.classList.contains('hidden') ? tree : results; }
+// Rows that are actually shown. Chrome hides closed <details> content with
+// content-visibility, which keeps layout (offsetParent etc.), so walk the tree
+// and skip the children of closed nodes instead of asking the layout engine.
+function rows() {
+  const out = [];
+  (function walk(container) {
+    for (const c of container.children) {
+      if (c.classList.contains('leaf')) out.push(c.firstChild);
+      else if (c.tagName === 'DETAILS') {
+        out.push(c.firstChild);
+        const kids = c.open && c.querySelector(':scope > .kids');
+        if (kids) walk(kids);
+      }
+    }
+  })(view());
+  return out;
+}
+function isShown(r) {
+  if (!r.isConnected || !view().contains(r)) return false;
+  const start = r.tagName === 'SUMMARY' ? r.parentElement.parentElement : r;
+  for (let d = start.closest('details'); d; d = d.parentElement.closest('details')) if (!d.open) return false;
+  return true;
+}
+function focusRow(r) { if (!r) return; current = r; r.focus({ preventScroll: true }); r.scrollIntoView({ block: 'nearest' }); }
+function parentRow(r) {
+  const kids = r.closest('.kids');
+  return kids ? kids.parentElement.firstChild : null;
+}
+// The focused row, or the last one we focused. If that row has since been hidden by a
+// fold, fall back to its nearest visible ancestor rather than losing the position.
+function curRow() {
+  const a = document.activeElement;
+  let r = a && a.classList && a.classList.contains('row') && view().contains(a) ? a
+    : current && current.isConnected && view().contains(current) ? current : null;
+  while (r && !isShown(r)) r = parentRow(r);
+  return r;
+}
+function move(d) {
+  const rs = rows();
+  if (!rs.length) return;
+  const i = rs.indexOf(curRow());
+  focusRow(rs[i < 0 ? 0 : Math.max(0, Math.min(rs.length - 1, i + d))]);
+}
+const det = r => r && r.tagName === 'SUMMARY' ? r.parentElement : null;
+function openSubtree(d, depth) {
+  if (!d || depth < 0) return;
+  openNode(d);
+  d.querySelectorAll(':scope > .kids > details').forEach(c => { if (!c.querySelector(':scope > summary .tag')?.textContent.includes('recursive')) openSubtree(c, depth - 1); });
+}
+
+// Runs one command; returns false if `key` isn't bound.
+function command(key) {
+  const r = curRow();
+  const d = det(r);
+  switch (key) {
+    case 'j': case 'ArrowDown': move(1); return true;
+    case 'k': case 'ArrowUp': move(-1); return true;
+    case 'l': case 'ArrowRight':
+      if (!r) move(0);
+      else if (d && !d.open) openNode(d);
+      else if (d) focusRow(d.querySelector(':scope > .kids .row'));
+      return true;
+    case 'h': case 'ArrowLeft':
+      if (d && d.open) d.open = false;
+      else if (r) focusRow(parentRow(r));
+      return true;
+    case 'Enter': case ' ': case 'za': case 'o':
+      if (d) { d.open ? d.open = false : openNode(d); }
+      if (r) focusRow(r);
+      return true;
+    case 'zo': if (d) openNode(d); return true;
+    case 'zc':
+      if (d && d.open) d.open = false;
+      else if (r) { const p = parentRow(r); if (p) { p.parentElement.open = false; focusRow(p); } }
+      return true;
+    case 'zO': openSubtree(d, 3); return true;
+    case 'zM': foldAll(); focusRow(rows()[0]); return true;
+    case 'zR': unfoldPackages(); return true;
+    case 'gd': { const link = r && r.querySelector('.type.link'); if (link) reveal(link.dataset.ref); return true; }
+    case 'gg': focusRow(rows()[0]); return true;
+    case 'G': { const rs = rows(); focusRow(rs[rs.length - 1]); return true; }
+    case 's': q.focus(); q.select(); return true;
+    case '/': openFind(); return true;
+    case 'n': findJump(1); return true;
+    case 'N': findJump(-1); return true;
+    case '*': {
+      const n = r && r.querySelector('.fname, .k-message, .k-enum, .k-service, .k-pkg');
+      if (n) { lastPat = n.textContent; findJump(1); }
+      return true;
+    }
+  }
+  return false;
+}
+
+// ---------- find in visible rows (vim-style / n N) ----------
+const findbar = document.getElementById('findbar');
+const find = document.getElementById('find');
+const findinfo = document.getElementById('findinfo');
+let lastPat = '';
+let findOrigin = null;
+let preview = null;
+let statusTimer;
+
+// Smartcase: case-sensitive only if the pattern has an uppercase letter.
+function norm(p) { const cs = /[A-Z]/.test(p); return { cs, p: cs ? p : p.toLowerCase() }; }
+// Text nodes of a row that are actually on screen (descriptions only when shown).
+function rowTextNodes(r) {
+  const out = [];
+  const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => document.body.classList.contains('nodesc') && n.parentElement.closest('.desc')
+      ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  });
+  for (let n; (n = w.nextNode());) out.push(n);
+  return out;
+}
+function findMatches(pat) {
+  const out = [];
+  if (!pat) return out;
+  const { cs, p } = norm(pat);
+  for (const r of rows()) {
+    const ranges = [];
+    for (const n of rowTextNodes(r)) {
+      const t = cs ? n.data : n.data.toLowerCase();
+      for (let i = t.indexOf(p); i >= 0; i = t.indexOf(p, i + p.length)) {
+        const rg = new Range(); rg.setStart(n, i); rg.setEnd(n, i + p.length); ranges.push(rg);
+      }
+    }
+    if (ranges.length) out.push({ row: r, ranges });
+  }
+  return out;
+}
+function clearHighlight() {
+  document.querySelectorAll('.row.match').forEach(r => r.classList.remove('match'));
+  if (window.CSS && CSS.highlights) CSS.highlights.delete('find');
+}
+function paint(ms) {
+  clearHighlight();
+  for (const m of ms) m.row.classList.add('match');
+  if (window.CSS && CSS.highlights && window.Highlight) CSS.highlights.set('find', new Highlight(...ms.flatMap(m => m.ranges)));
+}
+function setPreview(r) {
+  if (preview) preview.classList.remove('preview');
+  preview = r;
+  if (r) { r.classList.add('preview'); r.scrollIntoView({ block: 'nearest' }); }
+}
+// Next match after `from` in direction dir (inclusive includes `from` itself), wrapping.
+function nextMatch(ms, from, dir, inclusive) {
+  if (!ms.length) return null;
+  const rs = rows();
+  const idx = new Map(rs.map((r, i) => [r, i]));
+  const at = from && idx.has(from) ? idx.get(from) : (dir > 0 ? -1 : rs.length);
+  const order = ms.map((m, i) => ({ i, pos: idx.get(m.row) }));
+  let hit = dir > 0
+    ? order.find(o => inclusive ? o.pos >= at : o.pos > at)
+    : [...order].reverse().find(o => inclusive ? o.pos <= at : o.pos < at);
+  let wrapped = false;
+  if (!hit) { hit = dir > 0 ? order[0] : order[order.length - 1]; wrapped = true; }
+  return { m: ms[hit.i], n: hit.i + 1, wrapped };
+}
+function info(text, err = false) { findinfo.textContent = text; findinfo.classList.toggle('err', err); }
+
+function openFind() {
+  clearTimeout(statusTimer);
+  findOrigin = curRow();
+  findbar.classList.remove('hidden', 'status');
+  find.value = '';
+  info('');
+  find.focus();
+}
+function closeFind() {
+  findbar.classList.add('hidden');
+  setPreview(null);
+  find.blur();
+}
+function incremental() {
+  const ms = findMatches(find.value);
+  paint(ms);
+  if (!find.value) { setPreview(null); info(''); return; }
+  const hit = nextMatch(ms, findOrigin, 1, false);
+  if (!hit) { setPreview(null); info('Pattern not found', true); return; }
+  setPreview(hit.m.row);
+  info(`[${hit.n}/${ms.length}]`);
+}
+find.addEventListener('input', incremental);
+find.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const target = preview;
+    if (find.value) lastPat = find.value;
+    closeFind();
+    if (target) focusRow(target); else focusRow(findOrigin);
+    if (lastPat && !target) showStatus(`/${lastPat}`, 'Pattern not found', true);
+  } else if (e.key === 'Escape' || (e.key === 'Backspace' && !find.value)) {
+    e.preventDefault();
+    clearHighlight();
+    closeFind();
+    focusRow(findOrigin);
+  }
+  e.stopPropagation();
+});
+function showStatus(pat, text, err = false) {
+  findbar.classList.remove('hidden');
+  findbar.classList.add('status');
+  find.value = pat.replace(/^\//, '');
+  info(text, err);
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => { if (findbar.classList.contains('status')) findbar.classList.add('hidden'); }, 2500);
+}
+function findJump(dir) {
+  if (!lastPat) return showStatus('', 'No previous pattern', true);
+  const ms = findMatches(lastPat);
+  paint(ms);
+  const hit = nextMatch(ms, curRow(), dir, false);
+  if (!hit) return showStatus(lastPat, 'Pattern not found', true);
+  focusRow(hit.m.row);
+  const wrap = hit.wrapped ? (dir > 0 ? '  search hit BOTTOM, continuing at TOP' : '  search hit TOP, continuing at BOTTOM') : '';
+  showStatus(lastPat, `[${hit.n}/${ms.length}]${wrap}`);
+}
+
+const MODIFIERS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Fn']);
+let pending = '';
+let pendingTimer;
+function setPending(k) {
+  pending = k;
+  clearTimeout(pendingTimer);
+  if (k) pendingTimer = setTimeout(() => { pending = ''; }, 1000);
+}
+q.addEventListener('focus', () => setPending(''));
+document.addEventListener('keydown', (e) => {
+  if (e.isComposing || MODIFIERS.has(e.key)) return;
+  if (e.target === q) {
+    if (e.key === 'Escape') { q.value = ''; runSearch(); q.blur(); focusRow(rows()[0]); }
+    else if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); q.blur(); focusRow(rows()[0]); }
+    return;
+  }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'Escape') {
+    setPending('');
+    // First Esc clears find highlights (:noh), the next clears the global search.
+    if (document.querySelector('.row.match')) { clearHighlight(); findbar.classList.add('hidden'); }
+    else if (q.value) { q.value = ''; runSearch(); }
+    return;
+  }
+  if (pending) {
+    const combo = pending + e.key;
+    setPending('');
+    if (command(combo)) { e.preventDefault(); return; }
+    // Unbound combo (e.g. a stray `z` then `j`): drop the prefix, keep the key.
+  }
+  if (e.key === 'g' || e.key === 'z') { setPending(e.key); e.preventDefault(); return; }
+  if (command(e.key)) e.preventDefault();
+});
+</script>
+</body>
+</html>

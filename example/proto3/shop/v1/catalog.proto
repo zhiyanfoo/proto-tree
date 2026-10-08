@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package shop.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// A product that can be listed in the catalog.
+message Product {
+  // Stable identifier, e.g. "sku-1234".
+  string id = 1;
+  string title = 2;
+  Money price = 3;
+  // Free-form attributes such as color or size.
+  map<string, string> attributes = 4;
+  Category category = 5;
+  repeated Variant variants = 6;
+  google.protobuf.Timestamp created_at = 7;
+  // Use `title` instead.
+  string name = 8 [deprecated = true];
+  // Set only for products that are on sale.
+  optional Money sale_price = 9;
+
+  // A purchasable variation of a product.
+  message Variant {
+    string sku = 1;
+    Stock stock = 2;
+  }
+}
+
+// An amount of money in a given currency.
+message Money {
+  // ISO 4217 currency code.
+  string currency = 1;
+  int64 units = 2;
+  int32 nanos = 3;
+}
+
+// Categories form a tree.
+message Category {
+  string name = 1;
+  // Sub-categories; expanding this shows the type is recursive.
+  repeated Category children = 2;
+}
+
+// How a variant's stock is tracked.
+message Stock {
+  oneof level {
+    // Exact number of units on hand.
+    uint32 count = 1;
+    // The item is made to order and never runs out.
+    bool unlimited = 2;
+  }
+  Availability availability = 3;
+}
+
+enum Availability {
+  AVAILABILITY_UNSPECIFIED = 0;
+  // Ships within a day.
+  AVAILABILITY_IN_STOCK = 1;
+  AVAILABILITY_BACKORDER = 2;
+  AVAILABILITY_DISCONTINUED = 3;
+}

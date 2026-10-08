@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# proto-tree: render protobuf schemas as a single, self-contained, collapsible HTML tree.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  proto-tree [options] <proto_root>...
+  proto-tree [options] --json <protoc-gen-doc.json>
+
+Documents every .proto file under each <proto_root>. Each root is also added as
+an import path, so files should import each other relative to their root.
+
+Options:
+  -I, --proto_path DIR   Extra import path for dependencies (repeatable).
+  -o, --out FILE         Output HTML file (default: proto-tree.html).
+  -t, --title TITLE      Page title (default: "Proto tree").
+      --json FILE        Skip protoc; render JSON already produced by
+                         protoc-gen-doc (--doc_opt=json,<name>.json).
+  -h, --help             Show this help.
+
+Environment:
+  PROTOC                 protoc binary (default: protoc on PATH).
+  PROTOC_GEN_DOC         protoc-gen-doc binary (default: protoc-gen-doc on PATH).
+EOF
+}
+
+die() { echo "proto-tree: $*" >&2; exit 1; }
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+template="$here/template.html"
+out=proto-tree.html
+title="Proto tree"
+json=""
+includes=()
+roots=()
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -I|--proto_path) [ $# -ge 2 ] || die "$1 needs a value"; includes+=("$2"); shift 2 ;;
+    -I*) includes+=("${1#-I}"); shift ;;
+    --proto_path=*) includes+=("${1#*=}"); shift ;;
+    -o|--out) [ $# -ge 2 ] || die "$1 needs a value"; out=$2; shift 2 ;;
+    -t|--title) [ $# -ge 2 ] || die "$1 needs a value"; title=$2; shift 2 ;;
+    --json) [ $# -ge 2 ] || die "$1 needs a value"; json=$2; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    -*) die "unknown option: $1 (see --help)" ;;
+    *) roots+=("$1"); shift ;;
+  esac
+done
+
+[ -f "$template" ] || die "template not found: $template"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+if [ -z "$json" ]; then
+  [ ${#roots[@]} -gt 0 ] || { usage >&2; exit 2; }
+  protoc=${PROTOC:-protoc}
+  plugin=${PROTOC_GEN_DOC:-$(command -v protoc-gen-doc || true)}
+  command -v "$protoc" >/dev/null || die "protoc not found (set PROTOC)"
+  [ -n "$plugin" ] && [ -x "$plugin" ] || die "protoc-gen-doc not found (set PROTOC_GEN_DOC); see README"
+
+  args=(--plugin=protoc-gen-doc="$plugin")
+  files=()
+  for r in "${roots[@]}"; do
+    [ -d "$r" ] || die "not a directory: $r"
+    args+=(-I "$r")
+    while IFS= read -r f; do files+=("${f#./}"); done < <(cd "$r" && find . -name '*.proto' | sort)
+  done
+  [ ${#files[@]} -gt 0 ] || die "no .proto files found under: ${roots[*]}"
+  for i in ${includes[@]+"${includes[@]}"}; do args+=(-I "$i"); done
+
+  "$protoc" "${args[@]}" --doc_out="$tmp" --doc_opt=json,protos.json "${files[@]}"
+  json="$tmp/protos.json"
+fi
+
+[ -f "$json" ] || die "JSON not found: $json"
+
+esc_title=$(printf '%s' "$title" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g')
+
+# Inline the JSON into the page. Escape "</" so the data can't close the <script>.
+# The title goes through ENVIRON and index() so "&" and "\" in it stay literal.
+PT_DATA="$json" PT_TITLE="$esc_title" awk '
+  /^\/\*PROTO_DATA\*\/$/ { while ((getline line < ENVIRON["PT_DATA"]) > 0) { gsub(/<\//, "<\\/", line); print line }; next }
+  { while ((i = index($0, "__TITLE__")) > 0) $0 = substr($0, 1, i - 1) ENVIRON["PT_TITLE"] substr($0, i + 9); print }
+' "$template" > "$out"
+
+echo "Wrote $out"

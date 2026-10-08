@@ -1,0 +1,20 @@
+// An editions file. Needs a protoc-gen-doc build with editions support (see README).
+edition = "2023";
+
+package shop.v2;
+
+import "shop/v1/catalog.proto";
+
+// A customer order.
+message Order {
+  string id = 1;
+  repeated LineItem items = 2;
+  shop.v1.Money total = 3;
+  // Has implicit presence, like a plain proto3 field.
+  string note = 4 [features.field_presence = IMPLICIT];
+}
+
+message LineItem {
+  shop.v1.Product product = 1;
+  uint32 quantity = 2;
+}
